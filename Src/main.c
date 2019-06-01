@@ -13,22 +13,32 @@ GPIO_PinState led_matrix[NCOLS][NROWS] = {
   {0,0,1,1}
 };
 
-typedef struct
-{
+typedef struct {
   GPIO_TypeDef *port;
   uint16_t pin;
-} led_pin;
+} _led_pin_t;
 
+typedef struct {
+  uint8_t current_col;
+  GPIO_PinState matrix[NCOLS][NROWS];
+} _led_states_t;
+
+_led_states_t led_states = {
+  0,
+  {{0,0,1,1},
+  {1,1,0,0},
+  {0,0,1,1}}
+};
 
 /* Columns are cathodes (-) */
-const led_pin led_col_pins[NCOLS] = {
+const _led_pin_t led_col_pins[NCOLS] = {
   {GPIOA, GPIO_PIN_0},
   {GPIOA, GPIO_PIN_1}, 
   {GPIOA, GPIO_PIN_2}
 };
 
 /* Rows are anodes (+) */
-const led_pin led_row_pins[NROWS] = {
+const _led_pin_t led_row_pins[NROWS] = {
   {GPIOA, GPIO_PIN_3},
   {GPIOA, GPIO_PIN_4},
   {GPIOA, GPIO_PIN_5},
@@ -41,18 +51,28 @@ char key_matrix[NCOLS][NROWS] = {
   {0,0,0,0}
 };
 
-inline void redraw_leds(){
-  for (int nc=0; nc<NCOLS; nc++){
-    for (int nr=0; nr<NROWS; nr++){
-      HAL_GPIO_WritePin(led_row_pins[nr].port, led_row_pins[nr].pin , led_matrix[nc][nr]);
-    }
-    HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin, GPIO_PIN_RESET); // <- activate ROW
-    HAL_Delay(2);
-    HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin, GPIO_PIN_SET); // <- deactivate ROW
-
+/*
+  Draw the next column from the "current_col".
+  We assume here that the previous column has been already drawn.
+*/
+inline void draw_next_col(){
+  int cc = led_states.current_col;
+  HAL_GPIO_WritePin(led_col_pins[cc].port, led_col_pins[cc].pin, GPIO_PIN_SET); // <- deactivate ROW
+  // rewind if reached the last column
+  if (++led_states.current_col == NCOLS){
+    led_states.current_col = 0;
   }
-}
+  cc = led_states.current_col;
+  for (int nr=0; nr<NROWS; nr++){
+      HAL_GPIO_WritePin(led_row_pins[nr].port, led_row_pins[nr].pin , led_states.matrix[cc][nr]);
+  };
+  HAL_GPIO_WritePin(led_col_pins[cc].port, led_col_pins[cc].pin, GPIO_PIN_RESET); // <- activate ROW
+  HAL_Delay(2);
+};
 
+inline void rescan_keys(){
+  
+};
 
 int main(void)
 {
@@ -62,7 +82,7 @@ int main(void)
   //MX_USB_DEVICE_Init();
   while (1)
   { 
-    for (uint8_t i=0; i<100; i++) redraw_leds();
+    for (uint8_t i=0; i<100; i++) draw_next_col();
     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
     //HAL_Delay(10);
   }

@@ -22,7 +22,7 @@ TARGET = tkl01
 # debug build?
 DEBUG = 0
 # optimization
-OPT = -O1
+OPT = -O3
 
 
 #######################################
