@@ -22,7 +22,7 @@ TARGET = tkl01
 # debug build?
 DEBUG = 0
 # optimization
-OPT = -O3
+OPT = -O1
 
 
 #######################################
@@ -36,6 +36,7 @@ BUILD_DIR = build
 ######################################
 # C sources
 C_SOURCES =  \
+../Src/main.c \
 ../Src/usb_device.c \
 ../Src/usbd_conf.c \
 ../Src/usbd_desc.c \
@@ -63,9 +64,9 @@ C_SOURCES =  \
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c \
 ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c  
 
-CPP_SOURCES = \
-../Src/main.cpp \
-../Src/Keyboard.cpp
+CPP_SOURCES =
+
+
 
 
 # ASM sources
@@ -186,7 +187,7 @@ $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
-	$(CPP) $(OBJECTS) $(LDFLAGS) -o $@
+	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
 	$(SZ) $@
 
 $(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf | $(BUILD_DIR)

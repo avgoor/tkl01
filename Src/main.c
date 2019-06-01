@@ -1,109 +1,72 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-#include "Keyboard.hpp"
-/* Includes ------------------------------------------------------------------*/
-extern "C" {
-  #include "main.h"
-  #include "usb_device.h"
-}
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+#include "main.h"
+#include "usb_device.h"
 
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-/* USER CODE BEGIN PFP */
 
-/* USER CODE END PFP */
+#define NROWS   4
+#define NCOLS   3
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+GPIO_PinState led_matrix[NCOLS][NROWS] = {
+  {0,0,1,1},
+  {1,1,0,0},
+  {0,0,1,1}
+};
 
-/* USER CODE END 0 */
+typedef struct
+{
+  GPIO_TypeDef *port;
+  uint16_t pin;
+} led_pin;
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+
+/* Columns are cathodes (-) */
+const led_pin led_col_pins[NCOLS] = {
+  {GPIOA, GPIO_PIN_0},
+  {GPIOA, GPIO_PIN_1}, 
+  {GPIOA, GPIO_PIN_2}
+};
+
+/* Rows are anodes (+) */
+const led_pin led_row_pins[NROWS] = {
+  {GPIOA, GPIO_PIN_3},
+  {GPIOA, GPIO_PIN_4},
+  {GPIOA, GPIO_PIN_5},
+  {GPIOA, GPIO_PIN_6}
+};
+
+char key_matrix[NCOLS][NROWS] = {
+  {0,0,0,0},
+  {0,0,0,0},
+  {0,0,0,0}
+};
+
+inline void redraw_leds(){
+  for (int nc=0; nc<NCOLS; nc++){
+    for (int nr=0; nr<NROWS; nr++){
+      HAL_GPIO_WritePin(led_row_pins[nr].port, led_row_pins[nr].pin , led_matrix[nc][nr]);
+    }
+    HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin, GPIO_PIN_RESET); // <- activate ROW
+    HAL_Delay(2);
+    HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin, GPIO_PIN_SET); // <- deactivate ROW
+
+  }
+}
+
+
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-  
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USB_DEVICE_Init();
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-  Keyboard kbd();
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+  //MX_USB_DEVICE_Init();
   while (1)
-  {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+  { 
+    for (uint8_t i=0; i<100; i++) redraw_leds();
+    HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+    //HAL_Delay(10);
   }
-  /* USER CODE END 3 */
+
 }
 
 /**
@@ -167,23 +130,30 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BLINKER_GPIO_Port, BLINKER_Pin, GPIO_PIN_RESET);
 
+   for (int nc=0; nc<NCOLS; nc++){
+    HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin, GPIO_PIN_SET); // <- deactivate ROW
+  }
+
   /*Configure GPIO pins : LEDCOL1_Pin LEDCOL2_Pin LEDCOL3_Pin LEDROW1_Pin 
                            LEDROW2_Pin LEDROW3_Pin LEDROW4_Pin */
   GPIO_InitStruct.Pin = LEDCOL1_Pin|LEDCOL2_Pin|LEDCOL3_Pin|LEDROW1_Pin 
                           |LEDROW2_Pin|LEDROW3_Pin|LEDROW4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BLINKER_Pin */
+  memset(&GPIO_InitStruct, '\0', sizeof(GPIO_InitTypeDef));
   GPIO_InitStruct.Pin = BLINKER_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(BLINKER_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : KEYCOL1_Pin KEYCOL2_Pin KEYCOL3_Pin KEYROW1_Pin 
                            KEYROW2_Pin KEYROW3_Pin KEYROW4_Pin */
+  memset(&GPIO_InitStruct, '\0', sizeof(GPIO_InitTypeDef));
   GPIO_InitStruct.Pin = KEYCOL1_Pin|KEYCOL2_Pin|KEYCOL3_Pin|KEYROW1_Pin 
                           |KEYROW2_Pin|KEYROW3_Pin|KEYROW4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -224,5 +194,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
