@@ -16,43 +16,68 @@ GPIO_PinState led_matrix[NCOLS][NROWS] = {
 typedef struct {
   GPIO_TypeDef *port;
   uint16_t pin;
-} _led_pin_t;
+} _port_pin_t;
 
 typedef struct {
-  uint8_t current_col;
-  GPIO_PinState matrix[NCOLS][NROWS];
+  uint8_t         current_col;
+  GPIO_PinState   matrix[NCOLS][NROWS];
 } _led_states_t;
 
 _led_states_t led_states = {
   0,
-  {{0,0,1,1},
-  {1,1,0,0},
-  {0,0,1,1}}
+  {
+    {0,0,1,1},
+    {1,1,0,0},
+    {0,0,1,1}
+  }
 };
 
 /* Columns are cathodes (-) */
-const _led_pin_t led_col_pins[NCOLS] = {
+const _port_pin_t led_col_pins[NCOLS] = {
   {GPIOA, GPIO_PIN_0},
   {GPIOA, GPIO_PIN_1}, 
   {GPIOA, GPIO_PIN_2}
 };
 
 /* Rows are anodes (+) */
-const _led_pin_t led_row_pins[NROWS] = {
+const _port_pin_t led_row_pins[NROWS] = {
   {GPIOA, GPIO_PIN_3},
   {GPIOA, GPIO_PIN_4},
   {GPIOA, GPIO_PIN_5},
   {GPIOA, GPIO_PIN_6}
 };
 
-char key_matrix[NCOLS][NROWS] = {
-  {0,0,0,0},
-  {0,0,0,0},
-  {0,0,0,0}
+const _port_pin_t key_col_pins[NCOLS] = {
+  {GPIOB, GPIO_PIN_3},
+  {GPIOB, GPIO_PIN_4},
+  {GPIOB, GPIO_PIN_5}
+};
+
+const _port_pin_t key_row_pins[NROWS] = {
+  {GPIOB, GPIO_PIN_6},
+  {GPIOB, GPIO_PIN_7},
+  {GPIOB, GPIO_PIN_8},
+  {GPIOB, GPIO_PIN_9}
+};
+
+
+typedef struct {
+  uint8_t         current_col;
+  GPIO_PinState   matrix[NCOLS][NROWS];
+} _key_states_t;
+
+_key_states_t key_states = {
+  0,
+  {
+    {0,0,0,0},
+    {0,0,0,0},
+    {0,0,0,0}
+  }
 };
 
 /*
-  Draw the next column from the "current_col".
+  Draw the next column from the "current_col". This allows us for making seemless redrawing
+  alongside with executing other tasks inbetween refreshes.
   We assume here that the previous column has been already drawn.
 */
 inline void draw_next_col(){
@@ -70,8 +95,47 @@ inline void draw_next_col(){
   HAL_Delay(2);
 };
 
+
+/*
+  Scan the next column of the keyboard.
+  The previous column should have been scanned on the previous pass.
+*/
 inline void rescan_keys(){
-  
+  // these are helpers
+  inline void _pin_to_output(_port_pin_t pair){
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = pair.pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(pair.port, &GPIO_InitStruct);
+  };
+  inline void _pin_to_input(_port_pin_t pair){
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = pair.pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(pair.port, &GPIO_InitStruct);
+  };
+
+  // rewind if we reached the last column
+  if (++key_states.current_col == NCOLS){
+    key_states.current_col = 0;
+  }
+  // just for convenience
+  #define cc  key_states.current_col
+  _pin_to_output(key_col_pins[cc]);
+  HAL_GPIO_WritePin(key_col_pins[cc].port, key_col_pins[cc].pin, GPIO_PIN_RESET);
+  GPIO_PinState _key = GPIO_PIN_SET;
+  for (int nr=0; nr<NROWS; nr++){
+    _key = HAL_GPIO_ReadPin(key_row_pins[nr].port, key_row_pins[nr].pin);
+    if (_key == GPIO_PIN_RESET) {
+      led_states.matrix[cc][nr] ^= 1;
+    };
+  };
+  _pin_to_input(key_col_pins[cc]); // we finished, move the pin to the input mode (high-z)
+  #undef cc
 };
 
 int main(void)
@@ -84,6 +148,7 @@ int main(void)
   { 
     for (uint8_t i=0; i<100; i++) draw_next_col();
     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+    rescan_keys();
     //HAL_Delay(10);
   }
 
@@ -160,7 +225,7 @@ static void MX_GPIO_Init(void)
                           |LEDROW2_Pin|LEDROW3_Pin|LEDROW4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BLINKER_Pin */
@@ -168,18 +233,24 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = BLINKER_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BLINKER_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : KEYCOL1_Pin KEYCOL2_Pin KEYCOL3_Pin KEYROW1_Pin 
-                           KEYROW2_Pin KEYROW3_Pin KEYROW4_Pin */
+  /*Configure GPIO Keyboard colmun pins as INPUTS w/o pulling */
   memset(&GPIO_InitStruct, '\0', sizeof(GPIO_InitTypeDef));
-  GPIO_InitStruct.Pin = KEYCOL1_Pin|KEYCOL2_Pin|KEYCOL3_Pin|KEYROW1_Pin 
-                          |KEYROW2_Pin|KEYROW3_Pin|KEYROW4_Pin;
+  GPIO_InitStruct.Pin = KEYCOL1_Pin|KEYCOL2_Pin|KEYCOL3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO Keyboard row pins as INPUTS with pullup */
+  memset(&GPIO_InitStruct, '\0', sizeof(GPIO_InitTypeDef));
+  GPIO_InitStruct.Pin = KEYROW1_Pin|KEYROW2_Pin|KEYROW3_Pin|KEYROW4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 4 */
