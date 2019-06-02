@@ -81,17 +81,17 @@ _key_states_t key_states = {
   We assume here that the previous column has been already drawn.
 */
 inline void draw_next_col(){
-  int cc = led_states.current_col;
+  #define cc  led_states.current_col // convenience
   HAL_GPIO_WritePin(led_col_pins[cc].port, led_col_pins[cc].pin, GPIO_PIN_SET); // <- deactivate ROW
-  // rewind if reached the last column
-  if (++led_states.current_col == NCOLS){
-    led_states.current_col = 0;
+  // rewind if we reached the last column
+  if (++cc == NCOLS){
+    cc = 0;
   }
-  cc = led_states.current_col;
   for (int nr=0; nr<NROWS; nr++){
       HAL_GPIO_WritePin(led_row_pins[nr].port, led_row_pins[nr].pin , led_states.matrix[cc][nr]);
   };
   HAL_GPIO_WritePin(led_col_pins[cc].port, led_col_pins[cc].pin, GPIO_PIN_RESET); // <- activate ROW
+  #undef cc
   HAL_Delay(2);
 };
 
@@ -118,13 +118,12 @@ inline void rescan_keys(){
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(pair.port, &GPIO_InitStruct);
   };
-
-  // rewind if we reached the last column
-  if (++key_states.current_col == NCOLS){
-    key_states.current_col = 0;
-  }
   // just for convenience
   #define cc  key_states.current_col
+  // rewind if we reached the last column
+  if (++cc == NCOLS){
+    cc = 0;
+  }
   _pin_to_output(key_col_pins[cc]);
   HAL_GPIO_WritePin(key_col_pins[cc].port, key_col_pins[cc].pin, GPIO_PIN_RESET);
   GPIO_PinState _key = GPIO_PIN_SET;
