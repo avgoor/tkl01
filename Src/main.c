@@ -76,6 +76,11 @@ _key_states_t key_states = {
 };
 
 /*
+   TODO: Refactor it to a per row refresh, since the physical keyboard leds are
+   connected "one column" == "one resistor" and they are getting dimmer when
+   are lit simultaneously.
+*/
+/*
   Draw the next column from the "current_col". This allows us for making seemless redrawing
   alongside with executing other tasks inbetween refreshes.
   We assume here that the previous column has been already drawn.
@@ -124,16 +129,26 @@ inline void rescan_keys(){
   if (++cc == NCOLS){
     cc = 0;
   }
+  /*
+    Initially all the column pins are in the INPUT NOPULL mode (high impendance
+    state), we move one to the OUTPUT mode and set it to LOW (RESET) to read
+    the LOW state on row pins since they are initially pulled up.
+  */
   _pin_to_output(key_col_pins[cc]);
   HAL_GPIO_WritePin(key_col_pins[cc].port, key_col_pins[cc].pin, GPIO_PIN_RESET);
   GPIO_PinState _key = GPIO_PIN_SET;
   for (int nr=0; nr<NROWS; nr++){
     _key = HAL_GPIO_ReadPin(key_row_pins[nr].port, key_row_pins[nr].pin);
     if (_key == GPIO_PIN_RESET) {
+      //TODO: this is crap, find a better solution
       led_states.matrix[cc][nr] ^= 1;
     };
   };
-  _pin_to_input(key_col_pins[cc]); // we finished, move the pin to the input mode (high-z)
+  /*
+    We finished, move the pin to the input mode (high-z) in order to avoid
+    any kinds of shorting the column/row pins.
+  */
+  _pin_to_input(key_col_pins[cc]);
   #undef cc
 };
 
