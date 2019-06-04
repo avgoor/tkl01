@@ -6,6 +6,8 @@ static void MX_GPIO_Init(void);
 
 #define NROWS   4
 #define NCOLS   3
+#define DELAY_CYCLES(x) for(int l=0; l<x; l++){ asm volatile("nop"); }
+
 
 GPIO_PinState led_matrix[NCOLS][NROWS] = {
   {0,0,1,1},
@@ -19,7 +21,7 @@ typedef struct {
 } _port_pin_t;
 
 typedef struct {
-  uint8_t         current_col;
+  uint8_t         current_row;
   GPIO_PinState   matrix[NCOLS][NROWS];
 } _led_states_t;
 
@@ -76,28 +78,28 @@ _key_states_t key_states = {
 };
 
 /*
-   TODO: Refactor it to a per row refresh, since the physical keyboard leds are
-   connected "one column" == "one resistor" and they are getting dimmer when
-   are lit simultaneously.
+  Draw the next row from the "current_row". This allows us for making seemless
+  redrawing alongside with executing other tasks inbetween refreshes.
+  A column pin should be LOW for an active led and HIGH for a disabled.
+  Row pins should be activate one by one.
 */
-/*
-  Draw the next column from the "current_col". This allows us for making seemless redrawing
-  alongside with executing other tasks inbetween refreshes.
-  We assume here that the previous column has been already drawn.
-*/
-inline void draw_next_col(){
-  #define cc  led_states.current_col // convenience
-  HAL_GPIO_WritePin(led_col_pins[cc].port, led_col_pins[cc].pin, GPIO_PIN_SET); // <- deactivate ROW
-  // rewind if we reached the last column
-  if (++cc == NCOLS){
-    cc = 0;
+inline void draw_next_row(){
+  // little convenience defines
+  #define _cc   led_states.current_row
+  #define _lp   led_row_pins[_cc]
+  #define _lm   led_states.matrix
+  HAL_GPIO_WritePin(_lp.port, _lp.pin, GPIO_PIN_RESET); // <- deactivate ROW
+  // rewind if we reached the last row
+  if (++_cc == NROWS){
+    _cc = 0;
   }
-  for (int nr=0; nr<NROWS; nr++){
-      HAL_GPIO_WritePin(led_row_pins[nr].port, led_row_pins[nr].pin , led_states.matrix[cc][nr]);
+  for (int nc=0; nc<NCOLS; nc++){
+      HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin , _lm[nc][_cc] ^ 1);
   };
-  HAL_GPIO_WritePin(led_col_pins[cc].port, led_col_pins[cc].pin, GPIO_PIN_RESET); // <- activate ROW
-  #undef cc
-  HAL_Delay(2);
+  HAL_GPIO_WritePin(_lp.port, _lp.pin, GPIO_PIN_SET); // <- activate ROW
+  #undef _cc
+  #undef _lp
+  #undef _lm
 };
 
 
@@ -160,9 +162,14 @@ int main(void)
   //MX_USB_DEVICE_Init();
   while (1)
   { 
-    for (uint8_t i=0; i<100; i++) draw_next_col();
+    for (uint8_t k=0; k<4; k++){
+      for (uint8_t i=0; i<25; i++){
+        draw_next_row();
+      };
+      rescan_keys();
+      DELAY_CYCLES(10000);
+    };
     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-    rescan_keys();
     //HAL_Delay(10);
   }
 
