@@ -94,7 +94,9 @@ inline void draw_next_row(){
     _cc = 0;
   }
   for (int nc=0; nc<NCOLS; nc++){
-      HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin , _lm[nc][_cc] ^ 1);
+      HAL_GPIO_WritePin(led_col_pins[nc].port,
+                        led_col_pins[nc].pin ,
+                        _lm[nc][_cc] ^ 1);
   };
   HAL_GPIO_WritePin(_lp.port, _lp.pin, GPIO_PIN_SET); // <- activate ROW
   #undef _cc
@@ -235,9 +237,10 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BLINKER_GPIO_Port, BLINKER_Pin, GPIO_PIN_RESET);
-
-   for (int nc=0; nc<NCOLS; nc++){
-    HAL_GPIO_WritePin(led_col_pins[nc].port, led_col_pins[nc].pin, GPIO_PIN_SET); // <- deactivate ROW
+  for (int nc=0; nc<NCOLS; nc++){
+    HAL_GPIO_WritePin(led_col_pins[nc].port,
+                      led_col_pins[nc].pin,
+                      GPIO_PIN_SET); // <- deactivate ROW
   }
 
   /*Configure GPIO pins : LEDCOL1_Pin LEDCOL2_Pin LEDCOL3_Pin LEDROW1_Pin 
