@@ -143,9 +143,12 @@ inline void rescan_keys(){
   GPIO_PinState _key = GPIO_PIN_SET;
   for (int nr=0; nr<NROWS; nr++){
     _key = HAL_GPIO_ReadPin(key_row_pins[nr].port, key_row_pins[nr].pin);
-    if (_key == GPIO_PIN_RESET) {
-      //TODO: this is crap, find a better solution
-      led_states.matrix[cc][nr] ^= 1;
+    if (_key != key_states.matrix[cc][nr]) {
+      key_states.matrix[cc][nr] = _key;
+        /* flip the status LED on key press */
+        if (_key == GPIO_PIN_RESET){
+          led_states.matrix[cc][nr] ^= 1;
+        }
     };
   };
   /*
@@ -164,15 +167,14 @@ int main(void)
   //MX_USB_DEVICE_Init();
   while (1)
   { 
-    for (uint8_t k=0; k<4; k++){
-      for (uint8_t i=0; i<25; i++){
+    for (uint8_t k=0; k<250; k++){
+      for (uint8_t i=0; i<250; i++){
         draw_next_row();
+        DELAY_CYCLES(100);
       };
       rescan_keys();
-      DELAY_CYCLES(10000);
     };
     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-    //HAL_Delay(10);
   }
 
 }
