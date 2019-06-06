@@ -168,10 +168,8 @@ int main(void)
   while (1)
   { 
     for (uint8_t k=0; k<250; k++){
-      for (uint8_t i=0; i<250; i++){
-        draw_next_row();
-        DELAY_CYCLES(100);
-      };
+      draw_next_row();
+      DELAY_CYCLES(10000);
       rescan_keys();
     };
     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
